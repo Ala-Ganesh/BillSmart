@@ -1,0 +1,102 @@
+:root{
+  --bg:#fbfdfe;
+  --card:#ffffff;
+  --muted:#6b7280;
+  --text:#1f2937;
+  --accent:#7aa7ff;
+  --accent-2:#ffd18a;
+  --success:#8be2a6;
+  --shadow: 0 6px 20px rgba(28,41,63,0.06);
+  --shadow-subtle: 0 4px 12px rgba(28,41,63,0.04);
+  --radius:12px;
+  --gap:14px;
+}
+
+/* Dark theme variables (soft pastel dark) */
+[data-theme="dark"]{
+  --bg: #0f1724;
+  --card: #0b1220;
+  --muted: #94a3b8;
+  --text: #e6eef8;
+  --accent: #6b9bff;
+  --accent-2: #ffda8a;
+  --success: #79d6a8;
+  --shadow: 0 6px 20px rgba(2,6,23,0.6);
+  --shadow-subtle: 0 6px 16px rgba(2,6,23,0.5);
+}
+
+/* layout */
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-size:15px;line-height:1.45}
+.app-shell{display:flex;min-height:100vh;gap:20px}
+
+/* sidebar */
+.sidebar{
+  width:260px;
+  padding:20px;
+  display:flex;
+  flex-direction:column;
+  gap:18px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.6), rgba(255,255,255,0.35));
+  border-radius:16px;
+  box-shadow:var(--shadow);
+  margin:20px;
+}
+.app-shell.sidebar-hidden .sidebar{transform:translateX(-120%);transition:all .28s ease}
+.brand{display:flex;align-items:center;gap:12px;text-decoration:none;color:var(--text)}
+.brand-mark{width:48px;height:48px;border-radius:10px;background:linear-gradient(180deg,#ffdede,#ffefef);display:grid;place-items:center;font-weight:800;color:#d9534f}
+.brand-title{font-weight:800}
+.brand-sub{font-size:12px;color:var(--muted)}
+
+/* nav */
+.nav{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.nav-item{display:flex;gap:12px;align-items:center;padding:10px;border-radius:10px;color:var(--text);text-decoration:none;font-weight:600}
+.nav-item i{width:20px;text-align:center}
+.nav-item:hover{background: rgba(122,167,255,0.08)}
+.nav-item.active{background:linear-gradient(90deg,var(--accent),#6b9bff);color:white;box-shadow:var(--shadow-subtle)}
+
+/* bottom small icons */
+.sidebar-bottom{display:flex;gap:8px;align-items:center;margin-top:auto}
+.icon-btn{background:transparent;border:0;padding:8px;border-radius:8px;cursor:pointer}
+.nav-item-compact{display:inline-flex;align-items:center;justify-content:center;padding:8px;border-radius:8px;color:var(--muted);text-decoration:none}
+
+/* main content */
+.main{flex:1;margin:20px;display:flex;flex-direction:column}
+.topbar{display:flex;justify-content:space-between;align-items:center;padding:12px 8px;margin-bottom:14px}
+.topbar .page-title{font-weight:700;font-size:18px}
+.user{display:flex;align-items:center;gap:12px}
+.user-avatar{width:40px;height:40px;border-radius:10px;background:linear-gradient(180deg,#fff7f2,#f6fbff);display:grid;place-items:center;font-weight:700}
+.user-info{font-size:13px}
+.content-container{padding:0 6px}
+
+/* cards */
+.card-glass{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px}
+.stats-row{display:flex;gap:16px;margin-bottom:14px}
+.stat{flex:1;padding:16px;border-radius:12px;display:flex;justify-content:space-between;align-items:center}
+.stat .label{font-size:13px;color:var(--muted)}
+.stat .value{font-weight:800;font-size:20px}
+
+/* tables & bills */
+.table{width:100%;border-collapse:collapse}
+.bills-list{display:flex;flex-direction:column;gap:10px}
+.bill-item{display:flex;justify-content:space-between;align-items:center;padding:12px;border-radius:12px;background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent)}
+.bill-title{font-weight:700}
+.bill-meta{font-size:13px;color:var(--muted)}
+
+/* badges */
+.badge{padding:6px 8px;border-radius:8px;font-weight:700}
+.badge-paid{background:var(--success);color:#053523}
+.badge-pending{background:#fff4e6;color:#7a4b09}
+
+/* footer */
+.site-footer{padding:18px;margin-top:24px;text-align:center;color:var(--muted);font-size:13px}
+
+/* responsive */
+@media (max-width:900px){
+  .sidebar{position:fixed;left:14px;top:14px;z-index:40}
+  .main{margin:12px}
+}
+
+/* micro interactions */
+a.btn{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:10px;text-decoration:none}
+a.btn:hover{transform:translateY(-2px);transition:all .15s ease}
