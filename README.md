@@ -6,7 +6,9 @@ BillSmart is a web-based application designed to help users manage their bills e
 It allows users to track expenses, categorize bills, and receive reminders, all in a simple and user-friendly interface.
 
 ---
-
+## 🌐 Live Demo
+👉 https://billsmartapp.onrender.com
+---
 ## 🚀 Features
 
 * 🔐 Google OAuth Login Authentication
