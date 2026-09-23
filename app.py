@@ -13,15 +13,18 @@ load_dotenv()
 print("SECRET KEY LOADED:", os.getenv("SECRET_KEY"))
 
 
-
+from flask import Flask, render_template, request, redirect, url_for, session, flash
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import UserMixin
 from google_auth_oauthlib.flow import Flow
 import google.auth.transport.requests
 import google.oauth2.id_token
 
-from flask import Flask, render_template, request, redirect, url_for, session, flash
-from flask_sqlalchemy import SQLAlchemy
-from flask_login import UserMixin
-from werkzeug.security import generate_password_hash, check_password_hash
+PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID")
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
 
 # -------------------------------------------------
 # Flask app initialization
@@ -30,13 +33,14 @@ app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "devsecret")
 
 # -------------------------------------------------
-# Database setup
+# Database setup (SQLite ONLY)
 # -------------------------------------------------
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
-    "DATABASE_URL",
-    "sqlite:///" + os.path.join(BASE_DIR, "billsmart.db")
+
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + os.path.join(
+    BASE_DIR, "billsmart.db"
 )
+
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
@@ -57,10 +61,6 @@ EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 
 WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")
 PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID")
-
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
-GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
 
 
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
@@ -231,7 +231,6 @@ def register():
 
         flash("Registration successful!", "success")
         return redirect("/login")
-
     return render_template("register.html")
 
 
@@ -253,6 +252,8 @@ def login():
             session["user_id"] = user.id
             session["user_name"] = user.name
             session["user_phone"] = user.phone   # <-- Correctly indented
+            session["email"] = user.email
+            session["name"] = user.name
             return redirect("/dashboard")
 
         flash("Invalid email or password!", "danger")
@@ -261,12 +262,12 @@ def login():
     return render_template("login.html")
 
 
-
 # -------------------------------------------------
 # GOOGLE LOGIN
 # -------------------------------------------------
 @app.route("/login/google")
 def login_google():
+
     flow = Flow.from_client_config(
         {
             "web": {
@@ -288,24 +289,32 @@ def login_google():
 
     auth_url, state = flow.authorization_url(
         access_type="offline",
-        prompt="consent",
+        prompt="select_account",
         include_granted_scopes="true"
     )
 
-    session["state"] = state
+    session["google_oauth_state"] = state
+
     return redirect(auth_url)
 
 
 # -------------------------------------------------
-# GOOGLE CALLBACK (CLEANED & FIXED)
+# GOOGLE CALLBACK
 # -------------------------------------------------
 @app.route("/google/callback")
 def login_google_callback():
-    state = session.get("state")
+
+    state = session.get("google_oauth_state")
+
+    if not state:
+        flash("Google login session expired. Please try again.", "warning")
+        return redirect("/login")
+
     incoming_state = request.args.get("state")
 
-    if not state or state != incoming_state:
-        flash("OAuth state mismatch. Please try again.", "danger")
+    if not incoming_state or state != incoming_state:
+        session.pop("google_oauth_state", None)
+        flash("Google login verification failed. Please try again.", "danger")
         return redirect("/login")
 
     flow = Flow.from_client_config(
@@ -315,7 +324,7 @@ def login_google_callback():
                 "client_secret": GOOGLE_CLIENT_SECRET,
                 "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                 "token_uri": "https://oauth2.googleapis.com/token",
-                "redirect_uris": [GOOGLE_REDIRECT_URI],
+                "redirect_uris": [GOOGLE_REDIRECT_URI]
             }
         },
         scopes=[
@@ -323,7 +332,7 @@ def login_google_callback():
             "https://www.googleapis.com/auth/userinfo.email",
             "https://www.googleapis.com/auth/userinfo.profile"
         ],
-        state=state,
+        state=state
     )
 
     flow.redirect_uri = GOOGLE_REDIRECT_URI
@@ -331,29 +340,35 @@ def login_google_callback():
     try:
         flow.fetch_token(authorization_response=request.url)
     except Exception as e:
-        app.logger.error("Token fetch failed: %s", e)
-        flash("Google Login Failed. Try again.", "danger")
+        app.logger.error("Google token fetch failed: %s", e)
+        session.pop("google_oauth_state", None)
+        flash("Google Login Failed. Please try again.", "danger")
         return redirect("/login")
 
-    # Verify ID Token
-    token_request = google.auth.transport.requests.Request()
+    session.pop("google_oauth_state", None)
+
     try:
+        token_request = google.auth.transport.requests.Request()
+
         idinfo = google.oauth2.id_token.verify_oauth2_token(
             flow.credentials._id_token,
             token_request,
             GOOGLE_CLIENT_ID
         )
+
     except Exception as e:
-        app.logger.error("ID Token verification failed: %s", e)
-        flash("Could not verify Google token.", "danger")
+        app.logger.error("Google ID token verification failed: %s", e)
+        flash("Could not verify your Google account.", "danger")
         return redirect("/login")
 
     google_email = idinfo.get("email")
-    google_name = idinfo.get("name")
+    google_name = idinfo.get("name") or "Google User"
 
     if not google_email:
-        flash("Google did not return email!", "danger")
+        flash("Google did not provide an email address.", "danger")
         return redirect("/login")
+
+    google_email = google_email.lower()
 
     user = User.query.filter_by(email=google_email).first()
 
@@ -361,23 +376,24 @@ def login_google_callback():
         user = User(
             name=google_name,
             email=google_email,
-            password=generate_password_hash("GOOGLE_USER"),
+            password=generate_password_hash(
+                os.urandom(32).hex()
+            )
         )
+
         db.session.add(user)
         db.session.commit()
 
     session["user_id"] = user.id
     session["user_name"] = user.name
-    session["user_phone"] = user.phone  # <- added
+    session["user_phone"] = user.phone
+    session["email"] = user.email
+    session["name"] = user.name
 
     flash(f"Logged in as {user.name}", "success")
+
     return redirect("/dashboard")
 
-
-
-
-# -------------------------------------------------
-# LOGOUT
 # -------------------------------------------------
 @app.route("/logout")
 def logout():
@@ -392,40 +408,76 @@ def logout():
 @app.route("/dashboard")
 @login_required
 def dashboard():
+
     user = User.query.get(session["user_id"])
-    bills = Bill.query.filter_by(user_id=user.id).order_by(Bill.due_date).all()
 
-    # --------------------------------------
-    # PHONE ALERT LOGIC (Correct Indentation)
-    # --------------------------------------
-    show_phone_alert = False
-    if not user.phone:
-        show_phone_alert = True
+    if not user:
+        flash("Please login again.", "warning")
+        return redirect("/login")
 
-    total_amount = sum(b.amount for b in bills) if bills else 0
+    bills = (
+        Bill.query
+        .filter_by(user_id=user.id)
+        .order_by(Bill.due_date)
+        .all()
+    )
 
-    # Category totals
-    category_totals = defaultdict(float)
-    for b in bills:
-        category_totals[b.category] += b.amount
+    # Statistics
+    total_amount = sum(b.amount for b in bills)
 
-    # Month totals
-    month_totals = defaultdict(float)
-    for b in bills:
-        key = b.due_date.strftime("%b %Y")
-        month_totals[key] += b.amount
+    pending_count = sum(
+        1 for b in bills
+        if b.status.lower() == "pending"
+    )
+
+    paid_count = sum(
+        1 for b in bills
+        if b.status.lower() == "paid"
+    )
+
+    # Category Chart
+    category_dict = {}
+
+    for bill in bills:
+        category_dict[bill.category] = (
+            category_dict.get(bill.category, 0)
+            + bill.amount
+        )
+
+    category_labels = list(category_dict.keys())
+    category_values = list(category_dict.values())
+
+    # Monthly Trend Chart
+    month_dict = {}
+
+    for bill in bills:
+        month = bill.due_date.strftime("%b %Y")
+
+        month_dict[month] = (
+            month_dict.get(month, 0)
+            + bill.amount
+        )
+
+    month_labels = list(month_dict.keys())
+    month_values = list(month_dict.values())
+
+    # Mobile Number Alert
+    show_phone_alert = not bool(user.phone)
 
     return render_template(
         "dashboard.html",
         user=user,
         bills=bills,
         total_amount=total_amount,
-        category_labels=list(category_totals.keys()),
-        category_values=list(category_totals.values()),
-        month_labels=list(month_totals.keys()),
-        month_values=list(month_totals.values()),
-        show_phone_alert=show_phone_alert    # <-- MUST PASS THIS
+        pending_count=pending_count,
+        paid_count=paid_count,
+        category_labels=category_labels,
+        category_values=category_values,
+        month_labels=month_labels,
+        month_values=month_values,
+        show_phone_alert=show_phone_alert
     )
+
 
 
 
