@@ -10,7 +10,6 @@ from datetime import datetime, date, timedelta
 from collections import defaultdict
 from dotenv import load_dotenv
 load_dotenv()
-print("SECRET KEY LOADED:", os.getenv("SECRET_KEY"))
 
 
 from flask import Flask, render_template, request, redirect, url_for, session, flash
